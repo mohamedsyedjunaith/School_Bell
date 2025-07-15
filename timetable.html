@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Smart Digital School Bell</title>
+  <style>
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background-color: #0f0f0f;
+      color: #f0f0f0;
+      text-align: center;
+      margin: 0;
+      padding: 20px;
+    }
+
+    h2 {
+      font-size: 2em;
+      color: #00ffff;
+      text-shadow: 0 0 10px #00ffff;
+    }
+
+    table {
+      width: 80%;
+      margin: 20px auto;
+      border-collapse: collapse;
+      background-color: #1c1c1c;
+      box-shadow: 0 0 20px rgba(0, 255, 255, 0.2);
+      border-radius: 10px;
+      overflow: hidden;
+    }
+
+    th, td {
+      padding: 15px;
+      border: 1px solid #333;
+      text-align: center;
+    }
+
+    th {
+      background-color: #00ffff;
+      color: #000;
+      text-shadow: none;
+    }
+
+    td {
+      color: #f0f0f0;
+    }
+
+    button {
+      font-size: 14px;
+      padding: 10px 16px;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      transition: 0.3s ease;
+    }
+
+    .absent-btn {
+      background-color: #ff007f;
+      color: white;
+      box-shadow: 0 0 8px #ff007f, 0 0 16px #ff007f;
+    }
+
+    .absent-btn:hover {
+      background-color: #e60073;
+      box-shadow: 0 0 12px #ff3399, 0 0 20px #ff3399;
+    }
+
+    .change-btn {
+      background-color: #00ff99;
+      color: #000;
+      box-shadow: 0 0 6px #00ff99, 0 0 12px #00ff99;
+    }
+
+    .change-btn:hover {
+      background-color: #00cc7a;
+      box-shadow: 0 0 10px #00ffcc, 0 0 18px #00ffcc;
+    }
+
+    .absent {
+      background-color: #400000 !important;
+      color: #ffaaaa !important;
+      box-shadow: inset 0 0 10px #ff4d4d;
+    }
+
+    .substitute {
+      background-color: #002d00 !important;
+      color: #b6ffb6 !important;
+      box-shadow: inset 0 0 10px #00ff80;
+    }
+  </style>
+</head>
+<body>
+  <h2>Smart Digital School Bell</h2>
+  <button class="absent-btn" onclick="markAbsent()">Mark Myself Absent</button>
+  <table>
+    <thead>
+      <tr>
+        <th>Period</th>
+        <th>Time</th>
+        <th>Subject</th>
+        <th>Teacher</th>
+        <th>Staff ID</th>
+        <th>Action</th>
+      </tr>
+    </thead>
+    <tbody id="timetable">
+      <!-- Rows populated dynamically -->
+    </tbody>
+  </table>
+
+  <script>
+    const API_BASE = "http://localhost:5000";
+
+    document.addEventListener("DOMContentLoaded", () => {
+      fetchTimetable();
+    });
+
+    function convertTo24Hour(timeRange) {
+      const [start, end] = timeRange.split(" - ");
+      const formatTo24Hour = (time) => {
+        let [hour, minute] = time.split(":");
+        hour = parseInt(hour);
+        return `${hour.toString().padStart(2, '0')}:${minute}`;
+      };
+      return `${formatTo24Hour(start)} - ${formatTo24Hour(end)}`;
+    }
+
+    function fetchTimetable() {
+      fetch(`${API_BASE}/timetable`)
+        .then(res => res.json())
+        .then(data => {
+          console.log("Timetable Data:", data); // ✅ Debug log
+          const tbody = document.getElementById("timetable");
+          tbody.innerHTML = "";
+          data.forEach(period => {
+            let row = document.createElement("tr");
+            if (period.status === "absent") {
+              row.classList.add("absent");
+            } else if (period.status === "substitute") {
+              row.classList.add("substitute");
+            }
+
+            row.innerHTML = `
+              <td>${period.period}</td>
+              <td>${convertTo24Hour(period.time)}</td>
+              <td>${period.subject}</td>
+              <td class="teacher">${period.teacher}</td>
+              <td class="staff-id">${period.staffId}</td>
+              <td><button class="change-btn" onclick="changeTeacher(${period.period})">Change</button></td>
+            `;
+            tbody.appendChild(row);
+          });
+        });
+    }
+
+    function markAbsent() {
+      const staffId = prompt("Enter your Staff ID to mark yourself absent:");
+      if (staffId) {
+        fetch(`${API_BASE}/mark-absent`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ staffId })
+        })
+        .then(res => res.json())
+        .then(() => {
+          alert("Marked as absent.");
+          fetchTimetable();
+        });
+      }
+    }
+
+    function changeTeacher(period) {
+      let newTeacher = prompt("Enter Substitute Teacher Name:");
+      let newStaffId = prompt("Enter Substitute Staff ID:");
+      if (newTeacher && newStaffId) {
+        let approval = confirm(`${newTeacher} (ID: ${newStaffId}), do you approve taking this period?`);
+        if (approval) {
+          fetch(`${API_BASE}/assign-substitute`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ period, newTeacher, newStaffId })
+          })
+          .then(res => res.json())
+          .then(() => {
+            alert("Substitute assigned.");
+            fetchTimetable();
+          });
+        } else {
+          alert("Substitute did not approve.");
+        }
+      }
+    }
+  </script>
+</body>
+</html>
